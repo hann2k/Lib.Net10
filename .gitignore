@@ -260,3 +260,7 @@ paket-files/
 __pycache__/
 *.pyc
 *.zip
+
+# Keep root release artifacts under source control.
+!/Release/
+!/Release/**
