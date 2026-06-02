@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ClassDiagram MajorVersion="1" MinorVersion="1">
+  <Class Name="Framework.Common.ThreadManager.ManagedThread">
+    <Position X="3" Y="2.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAASAAAAAAAAAAAAAAAAAAACAAIAAAAEgAAAA=</HashCode>
+      <FileName>ThreadManager\ManagedThread.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Framework.Common.ThreadManager.ParameterlizedThread">
+    <Position X="0.5" Y="7.25" Width="2" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAABAAAAAAAAAIAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>ThreadManager\ManagedThread.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Framework.Common.ThreadManager.NoneParameterThread">
+    <Position X="3" Y="7.25" Width="2" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAABAAAAAAAAAIAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>ThreadManager\ManagedThread.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Framework.Common.ThreadManager.TimerManager">
+    <Position X="8.25" Y="2.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAA=</HashCode>
+      <FileName>ThreadManager\TimerManager.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Framework.Common.ThreadManager.Scheduler">
+    <Position X="5.5" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAACAAAAAAAIAAAAAAAAQACCAIIAAAAAgAQgA=</HashCode>
+      <FileName>ThreadManager\Scheduler.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Font Name="맑은 고딕" Size="9" />
+</ClassDiagram>

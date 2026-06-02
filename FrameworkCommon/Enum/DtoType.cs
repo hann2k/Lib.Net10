@@ -1,0 +1,14 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Framework.Common.Enum
+{
+    public enum DtoType
+    {
+        MsamIni,
+        LAMD_Dto,
+    }
+}
