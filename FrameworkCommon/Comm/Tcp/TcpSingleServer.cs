@@ -173,6 +173,7 @@ namespace Framework.Common.Comm
         }
     }
 
+#if false
     public class TcpListenerServer : NoneParameterThread
     {
         /// <summary>
@@ -353,6 +354,183 @@ namespace Framework.Common.Comm
 
 		protected override void CustomThreadRunner() => throw new NotImplementedException();
 	}
+
+#endif
+
+    public class TcpListenerServer : NoneParameterThread
+    {
+        private readonly string ServerID;
+        private readonly int ServerPort;
+        private readonly SemaphoreSlim SendLock = new SemaphoreSlim(1, 1);
+
+        private TcpListener TcpListener;
+        private TcpClient TcpClient;
+        private NetworkStream NetworkStream;
+        private CancellationTokenSource ListeningCancellation;
+        private Task ListeningTask = Task.CompletedTask;
+
+        public event EventHandler<ReceivedDataArgs> ReceivedData;
+        public event EventHandler<ConnectionStateArgs> ClientConnected;
+
+        public bool HasClient => this.TcpClient?.Connected == true;
+
+        public TcpListenerServer(string id, int port)
+        {
+            this.ServerID = id;
+            this.ServerPort = port;
+        }
+
+        public void Open()
+        {
+            if (this.ListeningTask.IsCompleted)
+            {
+                this.ListeningCancellation = new CancellationTokenSource();
+                this.ListeningTask = this.ListenAsync(this.ListeningCancellation.Token);
+            }
+        }
+
+        public async Task OpenAsync(CancellationToken cancellationToken = default)
+        {
+            if (this.ListeningTask.IsCompleted)
+            {
+                this.ListeningCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                this.ListeningTask = this.ListenAsync(this.ListeningCancellation.Token);
+            }
+
+            await this.ListeningTask.ConfigureAwait(false);
+        }
+
+        private async Task ListenAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                this.TcpListener = new TcpListener(IPAddress.Any, this.ServerPort);
+                this.TcpListener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                this.TcpListener.Start();
+
+                Log.Ins.Info($"TcpServer.Listening.Start({this.ServerID}) : {this.ServerPort}");
+
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    Log.Ins.Info($"TcpServer.Listening.Accept({this.ServerID})");
+                    this.TcpClient = await this.TcpListener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
+                    this.NetworkStream = this.TcpClient.GetStream();
+
+                    Log.Ins.Info($"TcpServer.Client.Connected({this.ServerID})");
+                    this.OnClientConnected(true);
+
+                    await this.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+
+                    this.OnClientConnected(false);
+                    Log.Ins.Info($"TcpServer.Client.Disconnected({this.ServerID})");
+                    this.CloseClient();
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception ex)
+            {
+                Log.Ins.Exception(ex);
+            }
+            finally
+            {
+                this.CloseClient();
+                this.TcpListener?.Stop();
+                Log.Ins.Info("TcpServer.Listening.Close()");
+            }
+        }
+
+        public bool Send(byte[] buffer) => this.SendAsync(buffer).GetAwaiter().GetResult();
+
+        public bool Send(string message) => this.Send(ByteConverter.ToBytes(message));
+
+        public async Task<bool> SendAsync(byte[] buffer, CancellationToken cancellationToken = default)
+        {
+            if (!this.HasClient || this.NetworkStream == null)
+            {
+                return false;
+            }
+
+            await this.SendLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await this.NetworkStream.WriteAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false);
+                await this.NetworkStream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Ins.Exception(ex);
+                return false;
+            }
+            finally
+            {
+                this.SendLock.Release();
+            }
+        }
+
+        public void Close() => this.CloseAsync().GetAwaiter().GetResult();
+
+        public async Task CloseAsync()
+        {
+            this.ListeningCancellation?.Cancel();
+            this.CloseClient();
+            this.TcpListener?.Stop();
+
+            try
+            {
+                await this.ListeningTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+
+            this.ListeningCancellation?.Dispose();
+            this.ListeningCancellation = null;
+        }
+
+        protected virtual void OnClientConnected(bool connected) =>
+            this.ClientConnected?.Invoke(this, new ConnectionStateArgs { Connected = connected });
+
+        protected virtual void ParsingReceivedData(byte[] rcv) =>
+            throw new NotImplementedException($"{this}.ParsingReceivedData() must be implemented.");
+
+        protected override void CustomThreadRunner() =>
+            throw new NotSupportedException("Use OpenAsync() instead.");
+
+        private async Task ReceiveAsync(CancellationToken cancellationToken)
+        {
+            var buffer = new byte[4096];
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var count = await this.NetworkStream.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false);
+                if (count == 0)
+                {
+                    return;
+                }
+
+                var received = new byte[count];
+                Array.Copy(buffer, received, count);
+
+                this.ParsingReceivedData(received);
+                this.ReceivedData?.Invoke(this, new ReceivedDataArgs { RcvBuff = received });
+            }
+        }
+
+        private void CloseClient()
+        {
+            this.NetworkStream?.Close();
+            this.NetworkStream = null;
+
+            this.TcpClient?.Close();
+            this.TcpClient = null;
+        }
+    }
 
 	/// <summary>
 	/// 1개의 클라이언트만 접속할수 있도록 한 TCP 소켓 서버

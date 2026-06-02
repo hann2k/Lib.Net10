@@ -14,7 +14,7 @@ namespace Framework.Common.Motion
         /// <summary>
         /// 이동거리(m) = 운동한 거리 (방향 없이 총 운동한 거리)
         /// </summary>
-        public decimal Distince { get; private set; }
+        public decimal Distance { get; private set; }
 
         /// <summary>
         /// 변위(m) = 위치의 변한 정도 (이전 측정 위치와 다음 측정 위치의 거리)
@@ -44,10 +44,10 @@ namespace Framework.Common.Motion
         /// <returns></returns>
         public decimal SetSpeed( int distanse, int timesec )
         {
-            this.Distince = distanse;
+            this.Distance = distanse;
             this.Time = timesec;
 
-            this.Speed = this.Distince / this.Time;
+            this.Speed = this.Distance / this.Time;
 
             return this.Speed;
         }

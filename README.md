@@ -110,13 +110,12 @@ dotnet test FrameworkCommonTest/Framework.Test.Unit.Common.csproj
 | `Framework.Common.Comm` | `PacketTwoWay` | `ClearRcv()`, `SetRcvData(...)`, `MatchData()` | 요청과 응답을 연결하는 양방향 패킷 수신 버퍼를 관리합니다. |
 | `Framework.Common.Comm` | `Framework_Beacon_Packet` | 생성자 | Beacon 프로토콜 공통 패킷 기반 클래스입니다. |
 | `Framework.Common.Comm` | `Beacon_Packet` | `CheckMagicCode(...)`, `SetReceivedBytes(byte[])` | Beacon 매직 코드 검사, 헤더 검증 및 본문 파싱을 수행합니다. |
-| `Framework.Common.Comm` | `TCPClient` | `DebugModeOn()`, `SetLocalLogging()`, `Open(...)`, `Close()` | 비동기 송수신 큐를 사용하는 TCP 클라이언트 기반 클래스입니다. |
+| `Framework.Common.Comm` | `TCPClient` | `DebugModeOn()`, `SetLocalLogging()`, `Open(...)`, `OpenAsync(...)`, `Close()`, `CloseAsync()` | 비동기 송수신 큐를 사용하는 TCP 클라이언트 기반 클래스입니다. 동기 메서드는 기존 호출부 호환을 위해 유지됩니다. |
 | `Framework.Common.Comm` | `TCPClient` | `SendFirst(byte[])`, `Send(byte[])`, `Send(string)`, `SendAdd(byte[])` | 즉시, 우선 및 일반 송신 큐에 데이터를 전달합니다. |
-| `Framework.Common.Comm` | `_TCPClient` | `SetClientID(...)`, `SetConnectionTimeout(...)`, `SetIPAddress(...)`, `Connect(...)`, `Disconnect()`, `Send(...)`, `Close()` | 이전 TCP 클라이언트 구현입니다. 신규 구현에서는 `TCPClient` 사용을 우선합니다. |
 | `Framework.Common.Comm` | `PowerTCPClient` | 생성자 | 전원 제어 통신을 위한 `TCPClient` 구현입니다. |
 | `Framework.Common.Comm` | `TcpTaskClient` | `SetClient(...)`, `Send(...)`, `Close()` | `Task` 기반 TCP 연결의 송수신과 종료를 관리합니다. |
 | `Framework.Common.Comm` | `TcpSocketServer` | `Open()`, `Send(...)`, `Close()` | 단일 TCP 소켓의 연결, 송수신 및 종료를 관리합니다. |
-| `Framework.Common.Comm` | `TcpListenerServer` | `Open()`, `Send(...)`, `Close()` | 단일 연결 TCP 리스너를 관리합니다. |
+| `Framework.Common.Comm` | `TcpListenerServer` | `Open()`, `OpenAsync(...)`, `Send(...)`, `SendAsync(...)`, `Close()`, `CloseAsync()` | 취소 가능한 비동기 방식으로 단일 연결 TCP 리스너를 관리합니다. 동기 메서드는 기존 호출부 호환을 위해 유지됩니다. |
 | `Framework.Common.Comm` | `TcpListenerServer2` | `Listen()`, `DequeueRcvBuff()`, `Send(...)`, `Close()` | 단일 연결 TCP 리스너와 수신 버퍼를 관리합니다. |
 | `Framework.Common.Comm` | `TcpSingleSocketServer` | `Listening()` | 단일 소켓 서버를 확장하기 위한 기반 클래스입니다. |
 | `Framework.Common.Comm` | `TcpMultiServer` | `Stop()`, `Disconnect(...)`, `Send(...)`, `BroadCast(...)` | 여러 TCP 클라이언트 연결을 관리하고 지정 또는 전체 클라이언트에 데이터를 전송합니다. |
