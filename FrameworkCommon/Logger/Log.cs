@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
 
 using Framework.Common.Singleton;
 using Framework.Common.Enum;
@@ -24,6 +25,11 @@ namespace Framework.Common.Logger
         /// </summary>
         private LogType LogLevel = LogType.Debug;
 
+        /// <summary>
+        /// 기본 로그 경로
+        /// </summary>
+        private string LogDir = @".\Log";
+
         private Thread LogThread;
         private bool LogRunFlag = false;
 
@@ -37,6 +43,19 @@ namespace Framework.Common.Logger
         }
 
 		public void SetLogLevel(LogType level) => this.LogLevel = level;
+
+        /// <summary>
+        /// 로그파일이 저장될 디렉토리를 설정한다. 디렉토리가 존재하지 않으면 생성한다.
+        /// </summary>
+        /// <param name="logDir"></param>
+        public void SetLogDir(string logDir)
+        {
+            this.LogDir = logDir;
+            if (!Directory.Exists(logDir))
+            {
+                Directory.CreateDirectory(logDir);
+            }
+        }
 
 		public void Connect(string ip, int port)
 		{
@@ -88,14 +107,60 @@ namespace Framework.Common.Logger
 			return s;
 		}
 
-		public string Debug(string msg) => this.Debug(msg, false);
-		public string Debug(string msg, bool remote) => this.WriteLog(LogType.Debug, msg, remote);
 
-		public string Debug(string[] msgs)
+		/// <summary>
+        /// 디버그 로그를 기록할 때는 로그메시지에 호출한 소스코드의 파일명, 라인번호, 멤버명을 포함하여 기록한다.
+        /// </summary>
+        /// <param name="msg"></param>
+        /// <param name="memberName"></param>
+        /// <param name="sourceFilePath"></param>
+        /// <param name="sourceLineNumber"></param>
+        /// <returns></returns>
+        public string Debug(string msg,
+            [CallerMemberName] string memberName = "",
+            [CallerFilePath] string sourceFilePath = "",
+            [CallerLineNumber] int sourceLineNumber = 0)
         {
-			var t = string.Empty;
-            foreach(var s in msgs )
+            msg = $"[{Path.GetFileName(sourceFilePath)}:{sourceLineNumber} {memberName}] {msg}";
+            return this.WriteLog(LogType.Debug, msg, false);
+        }
+
+        /// <summary>
+        /// 원격지로 디버그 로그를 전송할 때는 로그메시지에 호출한 소스코드의 파일명, 라인번호, 멤버명을 포함하여 전송한다.
+        /// </summary>
+        /// <param name="msg"></param>
+        /// <param name="remote"></param>
+        /// <param name="memberName"></param>
+        /// <param name="sourceFilePath"></param>
+        /// <param name="sourceLineNumber"></param>
+        /// <returns></returns>
+		public string Debug(string msg, bool remote,
+            [CallerMemberName] string memberName = "",
+            [CallerFilePath] string sourceFilePath = "",
+            [CallerLineNumber] int sourceLineNumber = 0)
+        {
+            msg = $"[{Path.GetFileName(sourceFilePath)}:{sourceLineNumber} {memberName}] {msg}";
+            return this.WriteLog(LogType.Debug, msg, remote);
+        }
+
+		/// <summary>
+        /// 디버그 로그들을 기록할 때는 첫번째 로그메시지에 호출한 소스코드의 파일명, 라인번호, 멤버명을 포함하여 기록한다.
+        /// </summary>
+        /// <param name="msgs"></param>
+        /// <param name="memberName"></param>
+        /// <param name="sourceFilePath"></param>
+        /// <param name="sourceLineNumber"></param>
+        /// <returns></returns>
+        public string Debug(string[] msgs,
+            [CallerMemberName] string memberName = "",
+            [CallerFilePath] string sourceFilePath = "",
+            [CallerLineNumber] int sourceLineNumber = 0)
+        {
+            // 첫 번째 메시지에는 호출한 소스코드의 파일명, 라인번호, 멤버명을 포함하여 기록한다.
+			var t = this.WriteLog(LogType.Debug, $"[{Path.GetFileName(sourceFilePath)}:{sourceLineNumber} {memberName}] {msgs[0]}", false);
+            foreach(var s in msgs.Skip(1))
             {
+                // 나머지 메시지는 그대로 기록한다.
                 t += this.WriteLog(LogType.Debug, s, false);
             }
 
@@ -182,7 +247,7 @@ namespace Framework.Common.Logger
 
         private void WriteLogFile(List<string> msgList)
         {
-			var LogDir = @".\Log";
+			// var LogDir = @".\Log";
             this.CheckCreateLogDir(LogDir);
 
 			// 로그파일 경로를 매일 변경되도록 지정한다.
