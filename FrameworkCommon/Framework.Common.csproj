@@ -4,10 +4,8 @@
     <RootNamespace>Framework.Common</RootNamespace>
     <AssemblyName>Framework.Common</AssemblyName>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <OutputPath>..\Release\</OutputPath>
+    <!-- NuGet 의존성 DLL도 출력 폴더에 복사 -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,4 +16,14 @@
     <Compile Remove="SIAmpere.cs" />
     <Compile Remove="Unit\SI\BaseUnit\**\*.cs" />
   </ItemGroup>
+
+  <!-- 빌드 산출물(의존 파일 포함)을 저장소 루트 Release 폴더로 복사 -->
+  <Target Name="CopyOutputToRepoRelease" AfterTargets="Build">
+    <ItemGroup>
+      <RepoReleaseFiles Include="$(TargetDir)**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(RepoReleaseFiles)"
+          DestinationFiles="@(RepoReleaseFiles->'$(MSBuildProjectDirectory)\..\Release\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>
