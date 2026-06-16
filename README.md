@@ -184,7 +184,7 @@ The methods in the following tables are organized around constructors and major 
 ## Notes
 
 * The target framework is `net10.0`.
-* JSON serialization uses `Newtonsoft.Json 13.0.3`.
+* JSON serialization uses the built-in `System.Text.Json` (no external dependency). `Dto.ToJson()` uses `UnsafeRelaxedJsonEscaping` and serializes the runtime type, producing output compatible with the previous `Newtonsoft.Json` behavior.
 * `FrameworkCommon/SIAmpere.cs` and `FrameworkCommon/Unit/SI/BaseUnit/*.cs` are legacy SI unit prototypes. They are currently excluded from compilation in the project file.
 * `Bootup`, `RemoteController`, `Earth`, `TextFileHandler`, `Serial`, and `DataBase/Mdb` are early structures reserved for future extension.
 * `Framework.Common.CsharpCodingConventions.CodeArchitectureSampleClass` is an example of coding style and architecture format. It is not a runtime feature.

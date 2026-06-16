@@ -105,7 +105,9 @@ namespace Framework.Common.Converter
 		/// <returns></returns>
 		public static string ToString( byte[] bytes )
         {
-			var str = Encoding.Default.GetString(bytes);
+			// Encoding.Default는 런타임/플랫폼 의존으로 오해 소지가 있어 UTF-8을 명시한다.
+			// (저장소 기본 인코딩 정책: UTF-8 = MySQL utf8mb4 동등)
+			var str = Encoding.UTF8.GetString(bytes);
             return str;
         }
 

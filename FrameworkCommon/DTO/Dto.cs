@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Encodings.Web;
 using Framework.Common.Converter;
 using Framework.Common.Enum;
 
@@ -46,7 +47,18 @@ namespace Framework.Common.DTO
 
 		public override string ToString() => throw new NotImplementedException("DTO를 출력하려면 base 참조 없이 ToString()을 새로 정의하세요.");
 
-		public string ToJson() => JsonConvert.SerializeObject(this, Formatting.Indented);
+		private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+		{
+			WriteIndented = true,
+			// Newtonsoft처럼 한글·'<','>','&'·작은따옴표(')를 \uXXXX로 이스케이프하지 않고 그대로 출력한다.
+			Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+		};
+
+		/// <summary>
+		/// 이 DTO를 들여쓰기된 JSON 문자열로 직렬화한다.
+		/// (추상 기반 타입이 아닌 런타임 실제 타입 기준으로 직렬화한다.)
+		/// </summary>
+		public string ToJson() => JsonSerializer.Serialize(this, this.GetType(), JsonOptions);
 
 		protected void OnDtoUpdated()
         {

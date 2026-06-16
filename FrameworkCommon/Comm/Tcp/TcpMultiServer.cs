@@ -22,6 +22,9 @@ namespace Framework.Common.Comm
 		private readonly int ServerPort;
 		private bool Listening = true;
 
+		// 보안 기본값: 외부 인터페이스(0.0.0.0)가 아닌 루프백(127.0.0.1)에만 바인딩한다.
+		private readonly IPAddress BindAddress;
+
 		private readonly TcpListener TcpListener;
 
 		// 클라이언트 집합.
@@ -29,12 +32,39 @@ namespace Framework.Common.Comm
 		private readonly Task MainTask;
 		private readonly CancellationTokenSource MainTaskCon = new CancellationTokenSource();
 
-		public TcpMultiServer(string id, int port, TcpTaskClient ttc)
+		/// <summary>
+		/// 현재 설정된 바인딩 IP 주소. 기본값은 127.0.0.1(루프백).
+		/// </summary>
+		public string BindAddressText => this.BindAddress?.ToString();
+
+		/// <summary>
+		/// 다중 클라이언트 TCP 서버를 생성한다.
+		/// 이 서버는 생성 즉시 수신 대기를 시작하므로, 바인딩 IP는 생성자에서 지정한다.
+		/// </summary>
+		/// <param name="id">서버 식별자</param>
+		/// <param name="port">수신 포트</param>
+		/// <param name="ttc">클라이언트 처리기</param>
+		/// <param name="bindIp">바인딩할 IP 주소. null/빈 값이면 127.0.0.1(루프백)에만 바인딩한다.</param>
+		/// <exception cref="ArgumentException">유효하지 않은 IP 주소일 때</exception>
+		public TcpMultiServer(string id, int port, TcpTaskClient ttc, string bindIp = null)
 		{
 			this.ServerID = id;
 			this.ServerPort = port;
 
-			this.TcpListener = new TcpListener(IPAddress.Any, this.ServerPort);
+			if (string.IsNullOrWhiteSpace(bindIp))
+			{
+				this.BindAddress = IPAddress.Loopback;
+			}
+			else if (!IPAddress.TryParse(bindIp, out var address))
+			{
+				throw new ArgumentException($"유효하지 않은 IP 주소입니다: '{bindIp}'", nameof(bindIp));
+			}
+			else
+			{
+				this.BindAddress = address;
+			}
+
+			this.TcpListener = new TcpListener(this.BindAddress, this.ServerPort);
 			this.TcpListener.Start();
 
 			this.MainTaskCon = new CancellationTokenSource();

@@ -9,10 +9,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Compile Remove="SIAmpere.cs" />
     <Compile Remove="Unit\SI\BaseUnit\**\*.cs" />
   </ItemGroup>

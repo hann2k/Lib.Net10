@@ -51,8 +51,17 @@ namespace Framework.Common.Comm
         private TcpClient TcpClient;
 
         private bool Listening = true;
+		private bool Started = false;
+
+		// 보안 기본값: 외부 인터페이스(0.0.0.0)가 아닌 루프백(127.0.0.1)에만 바인딩한다.
+		private IPAddress BindAddress = IPAddress.Loopback;
 
 		public bool HasClient => this.TcpClient == null ? false : this.TcpClient.Connected;
+
+		/// <summary>
+		/// 현재 설정된 바인딩 IP 주소. 기본값은 127.0.0.1(루프백).
+		/// </summary>
+		public string BindAddressText => this.BindAddress.ToString();
 
 		public TcpListenerServer2(string id, int port)
         {
@@ -60,16 +69,40 @@ namespace Framework.Common.Comm
             this.ServerPort = port;
         }
 
+		/// <summary>
+		/// 서버가 수신 대기할 바인딩 IP 주소를 지정한다.
+		/// 반드시 Listen() 호출 전에 설정해야 한다.
+		/// </summary>
+		/// <param name="ip">바인딩할 IPv4/IPv6 주소 문자열</param>
+		/// <exception cref="ArgumentException">유효하지 않은 IP 주소일 때</exception>
+		/// <exception cref="InvalidOperationException">이미 수신 대기 중일 때</exception>
+		public void SetBindAddress(string ip)
+		{
+			if (this.Started)
+			{
+				throw new InvalidOperationException("수신 대기 중에는 바인딩 주소를 변경할 수 없습니다. Listen() 호출 전에 설정하세요.");
+			}
+
+			if (!IPAddress.TryParse(ip, out var address))
+			{
+				throw new ArgumentException($"유효하지 않은 IP 주소입니다: '{ip}'", nameof(ip));
+			}
+
+			this.BindAddress = address;
+		}
+
         public void Listen()
         {
+            this.Started = true;
+
             try
             {
                 while (this.Listening)
                 {
 
-                    Log.Ins.Info($"TcpServer.Listening.Start({this.ServerID}) : {this.ServerPort}");
+                    Log.Ins.Info($"TcpServer.Listening.Start({this.ServerID}) : {this.ServerPort} @ {this.BindAddress}");
 
-                    this.TcpListener = new TcpListener(IPAddress.Any, this.ServerPort);
+                    this.TcpListener = new TcpListener(this.BindAddress, this.ServerPort);
                     this.TcpListener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                     this.TcpListener.Start();
 

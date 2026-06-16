@@ -1,0 +1,6 @@
+# 저장소 기본 인코딩 정책
+# 모든 파일은 UTF-8(BOM 없음)로 저장한다. (MySQL utf8mb4와 동일한 완전 UTF-8)
+root = true
+
+[*]
+charset = utf-8
