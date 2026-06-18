@@ -21,20 +21,26 @@ namespace Framework.Common.Converter
         /// <returns></returns>
         public static string ToHexString(byte[] buffer, int offset, int length)
         {
-            if (buffer.Length < length + offset)
+            ArgumentNullException.ThrowIfNull(buffer);
+            if (offset < 0)
             {
-                throw new ArgumentOutOfRangeException("원본 배열 크기가 출력할 크기보다 적습니다.");
+                throw new ArgumentOutOfRangeException(nameof(offset), "offset은 음수일 수 없습니다.");
             }
-            else if (buffer.Length >= length + offset)
+            if (length < 0)
             {
-				var bytes = new byte[length];
-                Array.Copy(buffer, offset, bytes, 0, length);
-                return ToHexString(bytes);
+                throw new ArgumentOutOfRangeException(nameof(length), "length는 음수일 수 없습니다.");
             }
-            else
+            // 보안 점검 #9: (offset + length)는 큰 값에서 int 오버플로로 음수가 되어 경계검사를
+            // 우회할 수 있다. offset/length/buffer.Length가 모두 음이 아니므로 뺄셈으로 비교하면
+            // 오버플로 없이 안전하게 검사할 수 있다. (거대 배열 할당 전에 의도한 예외를 던진다.)
+            if (offset > buffer.Length - length)
             {
-                return ToHexString(buffer);
+                throw new ArgumentOutOfRangeException(nameof(length), "원본 배열 크기가 출력할 크기보다 적습니다.");
             }
+
+            var bytes = new byte[length];
+            Array.Copy(buffer, offset, bytes, 0, length);
+            return ToHexString(bytes);
         }
 
         /// <summary>
@@ -45,20 +51,19 @@ namespace Framework.Common.Converter
         /// <returns></returns>
         public static string ToHexString( byte[] buffer, int length )
         {
-            if ( buffer.Length < length )
+            ArgumentNullException.ThrowIfNull(buffer);
+            if (length < 0)
             {
-                throw new ArgumentOutOfRangeException("원본 배열 크기가 출력할 크기보다 적습니다.");
+                throw new ArgumentOutOfRangeException(nameof(length), "length는 음수일 수 없습니다.");
             }
-            else if (buffer.Length > length)
+            if (buffer.Length < length)
             {
-				var bytes = new byte[length];
-                Array.Copy(buffer, 0, bytes, 0, length);
-                return ToHexString(bytes);
+                throw new ArgumentOutOfRangeException(nameof(length), "원본 배열 크기가 출력할 크기보다 적습니다.");
             }
-            else
-            {
-                return ToHexString(buffer);
-            }
+
+            var bytes = new byte[length];
+            Array.Copy(buffer, 0, bytes, 0, length);
+            return ToHexString(bytes);
         }
 
         /// <summary>
