@@ -67,8 +67,20 @@ namespace Framework.Common.Logger
 
 		public void Stop()
         {
-            while( this.LogBuffer.Count > 0 )
+            // 보안 점검 #7: 큐 접근은 항상 LogBufferLock으로 보호한다.
+            while (true)
             {
+                int remaining;
+                lock (this.LogBufferLock)
+                {
+                    remaining = this.LogBuffer.Count;
+                }
+
+                if (remaining == 0)
+                {
+                    break;
+                }
+
                 Thread.Sleep(100);
             }
 
@@ -169,12 +181,11 @@ namespace Framework.Common.Logger
 
         private string WriteLog(LogType type, string msg, bool remote)
         {
-            if (this.LogRunFlag == false)
-            {
-                this.StartLogThread();
-            }
+            this.StartLogThread();
 
-            lock (this.LogBuffer)
+            // 보안 점검 #7: 큐 보호 락을 LogBufferLock 하나로 통일한다.
+            // (기존에는 생산자 lock(LogBuffer) / 소비자 lock(LogBufferLock)로 서로 달라 상호배제가 되지 않았다.)
+            lock (this.LogBufferLock)
             {
                 if (this.LogLevel >= type)
                 {
@@ -190,6 +201,21 @@ namespace Framework.Common.Logger
 
         private void StartLogThread()
         {
+            // 보안 점검 #7: LogRunFlag 검사/기동을 락 밖에서 하면 동시 첫 호출 시
+            // 소비자 스레드가 여러 개 기동되어(같은 파일을 동시에 append) 경합이 발생한다.
+            // 락 안에서 단 한 번만 기동하도록 보장한다.
+            lock (this.LogBufferLock)
+            {
+                if (this.LogRunFlag)
+                {
+                    return;
+                }
+                this.StartLogThreadCore();
+            }
+        }
+
+        private void StartLogThreadCore()
+        {
             this.LogRunFlag = true;
 
             this.LogThread = new Thread(new ThreadStart(this.WriteLogFileThread))
@@ -204,43 +230,48 @@ namespace Framework.Common.Logger
         {
             while(this.LogRunFlag)
             {
+				// 큐는 락 안에서 로컬 리스트로 빠르게 비우고, 파일 I/O·원격 전송은 락 밖에서 수행한다.
+				// (보안 점검 #7: 파일쓰기/Sleep 구간까지 락을 쥐면 생산자가 통째로 막힌다.)
+				var items = new List<LogItem>();
+
 				lock (this.LogBufferLock)
 				{
-					var count = this.LogBuffer.Count;
+					while (this.LogBuffer.Count > 0)
+					{
+						var item = this.LogBuffer.Dequeue();
+						if (item != null)
+						{
+							items.Add(item);
+						}
+					}
+				}
 
-					if (count > 0)
+				if (items.Count > 0)
+				{
+					try
 					{
 						var msgList = new List<string>();
-						try
+						foreach (var item in items)
 						{
-							do
+							msgList.Add(item.FullMessage);
+							if (this.LogClient.IsConnected && item.Remote)
 							{
-								LogItem item = this.LogBuffer.Dequeue();
-								if (item != null)
-								{
-									msgList.Add(item.FullMessage);
-									if (this.LogClient.IsConnected && item.Remote)
-									{
-										this.LogClient.SendAdd(item.GetBytes());
-									}
-								}
+								this.LogClient.SendAdd(item.GetBytes());
 							}
-							while (--count > 0);
+						}
 
-							if (msgList.Count > 0)
-							{
-								this.WriteLogFile(msgList);
-							}
-						}
-						catch (Exception ex)
-						{
-							this.Exception(ex);
-						}
+						this.WriteLogFile(msgList);
 					}
-					else
+					catch (Exception ex)
 					{
-						Thread.Sleep(50);
+						// 보안 점검 #7: 여기서 this.Exception(ex)를 호출하면 다시 WriteLog→큐 락 경로로
+						// 재진입(자기재귀)하므로, 로깅 파이프라인 내부 오류는 Trace로만 남긴다.
+						Trace.WriteLine(ex.ToString());
 					}
+				}
+				else
+				{
+					Thread.Sleep(50);
 				}
             }
         }

@@ -22,7 +22,7 @@
 | 5-1 | 파일 읽기 경로 무검증 (경로 탐색)                   | 🟠 Medium | [ ]                    |            |
 | 5-2 | 파일 쓰기 경로 무검증 (임의 파일 쓰기)              | 🟠 Medium | [ ]                    |            |
 | 6   | 레거시 P/Invoke INI + 고정 255 버퍼                 | 🟠 Medium | [ ]                    |            |
-| 7   | Log 클래스 락 불일치 (경합 조건)                    | 🟡 Low    | [ ]                    |            |
+| 7   | Log 클래스 락 불일치 (경합 조건)                    | 🟡 Low    | [x]                    | 2026-06-19 |
 | 8-1 | TcpMultiServer 핸들러 객체 공유                     | 🟡 Low    | [ ]                    |            |
 | 8-2 | Clients Dictionary 비동기화 접근 (경합)             | 🟡 Low    | [ ]                    |            |
 | 9   | ByteConverter 정수 오버플로 가능성                  | 🟡 Low    | [x]                    | 2026-06-18 |
@@ -303,24 +303,30 @@ var it = new Item(items[0], items[1], i);  // '=' 없는 줄 → items[1] IndexO
 
 ### 7. Log 클래스의 락 불일치 (경합 조건)
 
-- [ ] 수정 완료
+- [X] 수정 완료 (2026-06-19)
 
 **위치**
 
-- `FrameworkCommon/Logger/Log.cs:177` — `lock(this.LogBuffer)`
-- `FrameworkCommon/Logger/Log.cs:207` — `lock(this.LogBufferLock)`
-- `FrameworkCommon/Logger/Log.cs:237` — 락 보유 중 `this.Exception(ex)` 재진입
+- `FrameworkCommon/Logger/Log.cs` — 생산자 `WriteLog`의 `lock(this.LogBuffer)`
+- `FrameworkCommon/Logger/Log.cs` — 소비자 `WriteLogFileThread`의 `lock(this.LogBufferLock)`
+- `FrameworkCommon/Logger/Log.cs` — 락 보유 중 `this.Exception(ex)` 재진입
+- (추가 발견) `StartLogThread`의 `LogRunFlag` 검사/기동이 락 밖 → 소비자 스레드 다중 기동
+- (추가 발견) `Stop`의 `LogBuffer.Count` 락 없는 접근
 
 **문제**
-같은 큐(`LogBuffer`)를 서로 다른 락으로 보호하여 Enqueue/Dequeue 동시 실행 시 큐 손상 가능. 또한 락을 잡은 채 `Exception`을 재호출해 자기재귀 위험.
+같은 큐(`LogBuffer`)를 서로 다른 락으로 보호하여 Enqueue/Dequeue 동시 실행 시 큐 손상 가능. 또한 락을 잡은 채 `Exception`을 재호출해 자기재귀 위험. 추가로 첫 동시 호출 시 소비자 스레드가 여러 개 기동되어 같은 로그 파일을 동시에 append → 파일 잠금 충돌로 일부 항목이 파일 대신 Trace로 유실됨.
 
 **영향**
-로그 큐 손상, 잠재적 데드락.
+로그 큐 손상, 잠재적 데드락, 동시 기록 시 로그 항목 유실.
 
-**조치**
+**조치 (적용 완료)**
 
-- 큐 보호 락을 하나로 통일.
-- catch 블록에서 락 재획득 경로 제거.
+- 큐 보호 락을 `LogBufferLock` **하나로 통일**(생산자 `WriteLog` 포함).
+- 소비자 스레드: 큐는 **락 안에서 로컬 리스트로 비우고**, 파일 I/O·원격 전송·`Sleep`은 **락 밖에서** 수행 → 락 보유 구간 최소화(생산자 블로킹 제거).
+- catch 블록에서 `this.Exception(ex)`(재진입) 제거 → `Trace.WriteLine`으로만 기록.
+- `StartLogThread`를 락 안에서 `LogRunFlag` 검사 후 **단 한 번만** 기동하도록 변경(소비자 스레드 단일화).
+- `Stop`의 큐 카운트 조회도 `LogBufferLock`으로 보호.
+- 테스트: `FrameworkCommonTest/LogConcurrencyTest.cs` (8스레드×250건 동시 기록, 유실 0 검증). 전체 235종 통과.
 
 ---
 
