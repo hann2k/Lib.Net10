@@ -134,7 +134,9 @@ namespace Framework.Common.Comm
                 {
                     base.Error.SetReason(PacketErrorReason.BodyError);
                     base.Error.SetReason("데이터 사이즈가 실제 길이와 값이 맞지 않습니다.");
-                    // return false;
+                    // 보안 점검 #3: 크기 불일치 검증 복원. 헤더가 선언한 길이와 실제 바디 길이가
+                    // 다르면 무효 처리하여 하위 Parse가 헤더 길이를 신뢰해 OOB 읽기를 하지 못하게 한다.
+                    return false;
                 }
 
                 return true;
@@ -172,20 +174,28 @@ namespace Framework.Common.Comm
         {
             try
             {
+                // 보안 점검 #3: 최소 길이(헤더 7바이트) 가드.
+                // 미만이면 GetRange가 OOB 예외를 던지므로, 사전에 명시적으로 거부한다.
+                const int HeaderLength = 7;
+                if (array == null || array.Length < HeaderLength)
+                {
+                    base.Error.SetReason(PacketErrorReason.HeaderError);
+                    base.Error.SetReason($"패킷 길이가 최소 헤더 길이({HeaderLength}바이트)보다 짧습니다.");
+                    Log.Ins.Error(this.Error.Reason);
+                    return;
+                }
+
                 // 헤더를 분리한다
-                this.Header.AddRange(array.ToList().GetRange(0, 7));
+                this.Header.AddRange(array.ToList().GetRange(0, HeaderLength));
 
                 // 데이터 영역을 분리한다.
-                this.Body.AddRange(array.ToList().GetRange(7, array.Length - 7));
+                this.Body.AddRange(array.ToList().GetRange(HeaderLength, array.Length - HeaderLength));
 
                 // 명령어를 추출한다.
                 this.Command = this.Header[4]; //.Get(4);
 
-                // 헤더부분의 유효성을 검사한다.
-                this.ValidateHeader(this.Header.GetBytes(), this.Body.Length);
-
-                // 에러가 없으면
-                if (!this.Error.Error)
+                // 헤더부분의 유효성을 검사한다. (보안 점검 #3: 반환값을 실제 게이트로 사용)
+                if (this.ValidateHeader(this.Header.GetBytes(), this.Body.Length))
                 {
                     // 수신한 데이터를 파싱한다.
                     this.Parse(this.Body.GetBytes());
