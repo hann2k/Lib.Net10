@@ -18,7 +18,7 @@
 | 2-1 | TcpTaskClient 미사용 수신버퍼 누적 (DoS)            | 🔴 High   | [x]                    | 2026-06-16 |
 | 2-2 | PacketTwoWay 누적 버퍼 무제한 (상한 필요)           | 🔴 High   | [ ]                    |            |
 | 3   | Beacon 패킷 크기 검증 비활성화                      | 🔴 High   | [ ]                    |            |
-| 4   | INI 파싱이 악성/오타 설정에 취약 (크래시)           | 🟠 Medium | [ ]                    |            |
+| 4   | INI 파싱이 악성/오타 설정에 취약 (크래시)           | 🟠 Medium | [x]                    | 2026-06-19 |
 | 5-1 | 파일 읽기 경로 무검증 (경로 탐색)                   | 🟠 Medium | [ ]                    |            |
 | 5-2 | 파일 쓰기 경로 무검증 (임의 파일 쓰기)              | 🟠 Medium | [ ]                    |            |
 | 6   | 레거시 P/Invoke INI + 고정 255 버퍼                 | 🟠 Medium | [x]                    | 2026-06-19 |
@@ -208,11 +208,11 @@ if (bodyLength != size) {
 
 ### 4. INI 파싱이 악성/오타 설정에 취약 (크래시)
 
-- [ ] 수정 완료
+- [X] 수정 완료 (2026-06-19)
 
 **위치**
 
-- `FrameworkCommon/Config/INI_UTF8.cs:93-94`
+- `FrameworkCommon/Config/INI_UTF8.cs` — `SetIniFile`의 줄 파싱 루프
 
 **문제**
 
@@ -221,15 +221,20 @@ var items = line.Split('=');
 var it = new Item(items[0], items[1], i);  // '=' 없는 줄 → items[1] IndexOutOfRangeException
 ```
 
-`SetIniFile` 전체에 try/catch가 없어 `=`가 없는 한 줄만 있어도 설정 로드가 통째로 중단된다. 값에 `=`가 포함되면 잘려나가는 문제도 있다.
+`SetIniFile` 전체에 try/catch가 없어 `=`가 없는 한 줄만 있어도 설정 로드가 통째로 중단된다. 값에 `=`가 포함되면 잘려나가는 문제도 있다. 추가로 섹션(`[Section]`) 없이 등장한 `key=value`는 `Sections[CurrentSection]`에서 `KeyNotFoundException`으로 크래시한다.
 
 **영향**
 설정 파일 손상/오타로 인한 시작 실패(가용성).
 
-**조치**
+**조치 (적용 완료)**
 
-- 구분자 부재/형식 오류 줄은 건너뛰고 로깅.
-- `Split('=', 2)` 사용으로 값 내 `=` 보존.
+- 구분자(`=`) 없는 줄은 건너뛰고 `Log.Ins.Warning`으로 로깅.
+- `Split('=', 2)` 사용으로 값 내 `=` 보존(첫 `=`만 구분자).
+- 섹션 없이 등장한 항목도 크래시 대신 건너뛰고 로깅.
+- 공백 전용 줄은 빈 줄과 동일하게 무시(`IsNullOrWhiteSpace`).
+- 중복 키는 `Console.WriteLine` 대신 `Log.Ins.Warning`으로 보고하고 첫 항목 유지(기존 동작).
+- 줄 단위 `try/catch` 방어 추가 → 예기치 못한 형식 오류도 해당 줄만 건너뛰어 전체 로드 보장.
+- 테스트: `FrameworkCommonTest/IniConfigTest.cs` (#4 관련 5종: 구분자 없음/값 내 `=`/섹션 없는 항목/중복 키/공백·주석). 전체 242종 통과.
 
 ---
 

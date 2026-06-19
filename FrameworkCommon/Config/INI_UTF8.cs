@@ -63,49 +63,76 @@ namespace Framework.Common.Config
 			{
 				var line = this.Lines[i];
 
-				if(line.Length == 0)
+				// 보안 점검 #4: 악성/오타 설정 한 줄이 전체 로드를 중단시키지 않도록
+				// 줄 단위로 방어한다(예외 발생 시 해당 줄만 건너뛰고 로깅).
+				try
 				{
-					// 빈줄 아무것도 하지 않음.
-				}
-				else if (line[0] == '#')
-				{
-					// 주석 처리. 아무것도 하지 않음
-				}
-				else if (line[0] == '[' && line[line.Length-1] == ']' )
-				{
-					// 섹션 이름을 추출한다.
-					var section = line.Substring(1, line.Length - 2);
-
-					// 신규 Section 이름을 만나면 섹션 사전에 넣는다.
-					if ( !this.Sections.ContainsKey(section) )
+					if (string.IsNullOrWhiteSpace(line))
 					{
-						// 새 섹션을 만들고, 섹션 아이템 목록을 설정한다.
-						this.Sections.Add(section, new List<Item>());
-						// Console.WriteLine($"New Section : [{section}]");
+						// 빈 줄/공백 줄: 무시
+						continue;
 					}
 
-					// 현재 Section 설정
-					this.CurrentSection = section;
-				}
-				else
-				{
+					if (line[0] == '#')
+					{
+						// 주석 처리. 아무것도 하지 않음
+						continue;
+					}
+
+					if (line[0] == '[' && line[line.Length - 1] == ']')
+					{
+						// 섹션 이름을 추출한다.
+						var section = line.Substring(1, line.Length - 2);
+
+						// 신규 Section 이름을 만나면 섹션 사전에 넣는다.
+						if (!this.Sections.ContainsKey(section))
+						{
+							// 새 섹션을 만들고, 섹션 아이템 목록을 설정한다.
+							this.Sections.Add(section, new List<Item>());
+						}
+
+						// 현재 Section 설정
+						this.CurrentSection = section;
+						continue;
+					}
+
 					// 설정된 Section에 Key Value 쌍을 저장
-					var items = line.Split('=');
+					// 보안 점검 #4: '=' 없는 줄은 items[1] 접근에서 IndexOutOfRange로 전체 로드가 중단됐다.
+					// 구분자 없는 줄은 건너뛰고 로깅한다.
+					var sep = line.IndexOf('=');
+					if (sep < 0)
+					{
+						Log.Ins.Warning($"{this.INI_FILE} {i + 1}행: '=' 구분자가 없어 건너뜁니다. [{line}]");
+						continue;
+					}
+
+					// 보안 점검 #4: Split('=', 2)로 값 안의 '='를 보존한다(첫 '='만 구분자로 사용).
+					var items = line.Split('=', 2);
 					var it = new Item(items[0], items[1], i);
 
+					// 보안 점검 #4: 섹션 없이 등장한 key=value는 담을 곳이 없어 KeyNotFound로 크래시했다.
+					if (string.IsNullOrEmpty(this.CurrentSection) || !this.Sections.ContainsKey(this.CurrentSection))
+					{
+						Log.Ins.Warning($"{this.INI_FILE} {i + 1}행: 섹션([Section]) 없이 등장한 항목이라 건너뜁니다. [{line}]");
+						continue;
+					}
+
 					var idx = this.Sections[this.CurrentSection].FindIndex(n => n.Key == it.Key);
-					if (idx < 0 )
+					if (idx < 0)
 					{
 						// 목록에서 못찾으면 아이템을 추가한다.
 						this.Sections[this.CurrentSection].Add(it);
-						// Console.WriteLine($"Add Item : {it.Key}={it.Value} [{it.Index}]");
 					}
 					else
 					{
-						// 목록에 있으면 충돌 예외를 발생시킨다.
-						// throw new DuplicateKeyException();
-						Console.WriteLine($"충돌 Item : {it.Key}={it.Value} [{it.Index}]");
+						// 목록에 있으면 중복 키로 보고 첫 항목을 유지한다(기존 동작).
+						Log.Ins.Warning($"{this.INI_FILE} {i + 1}행: 중복 키 '{it.Key}' 무시(첫 항목 유지). [{line}]");
 					}
+				}
+				catch (Exception ex)
+				{
+					// 예기치 못한 형식 오류도 해당 줄만 건너뛴다(가용성 보장).
+					Log.Ins.Warning($"{this.INI_FILE} {i + 1}행 파싱 오류로 건너뜁니다. [{line}] - {ex.Message}");
 				}
 			}
 		}
