@@ -10,6 +10,7 @@ using System.Runtime.CompilerServices;
 
 using Framework.Common.Singleton;
 using Framework.Common.Enum;
+using Framework.Common.Files;
 
 namespace Framework.Common.Logger
 {
@@ -50,10 +51,11 @@ namespace Framework.Common.Logger
         /// <param name="logDir"></param>
         public void SetLogDir(string logDir)
         {
-            this.LogDir = logDir;
-            if (!Directory.Exists(logDir))
+            // 보안 점검 #5-2: 절대경로는 허용하되 상대경로의 '..' 디렉터리 탈출은 차단한다.
+            this.LogDir = PathGuard.EnsureSafe(logDir);
+            if (!Directory.Exists(this.LogDir))
             {
-                Directory.CreateDirectory(logDir);
+                Directory.CreateDirectory(this.LogDir);
             }
         }
 

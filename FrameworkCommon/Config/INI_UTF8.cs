@@ -1,4 +1,5 @@
 using Framework.Common.Logger;
+using Framework.Common.Files;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -50,7 +51,8 @@ namespace Framework.Common.Config
 		/// <param name="file"></param>
 		protected void SetIniFile(string file)
 		{
-			this.INI_FILE = file;
+			// 보안 점검 #5-1: 절대경로는 허용하되 상대경로의 '..' 디렉터리 탈출은 차단한다.
+			this.INI_FILE = PathGuard.EnsureSafe(file);
 
 			IEnumerable<string> t = File.ReadLines(this.INI_FILE, Encoding.UTF8);
 			this.Lines = t.ToList();
@@ -184,16 +186,19 @@ namespace Framework.Common.Config
 
 		protected void WriteFile()
 		{
-			// Console.WriteLine($"AutoFile : {this.AUTO_FILE}");
-			Console.WriteLine($"INI_FILE : {this.INI_FILE}");
+			// 보안 점검 #5-2: 절대경로는 허용하되 상대경로의 '..' 디렉터리 탈출은 차단한다.
+			var path = PathGuard.EnsureSafe(this.INI_FILE);
 
-			StreamWriter sw = File.CreateText(this.INI_FILE);
+			// Console.WriteLine($"AutoFile : {this.AUTO_FILE}");
+			Console.WriteLine($"INI_FILE : {path}");
+
+			StreamWriter sw = File.CreateText(path);
 			foreach( var line in this.Lines)
 			{
 				sw.WriteLine(line);
 			}
 			sw.Close();
-			
+
 		}
 	}
 }

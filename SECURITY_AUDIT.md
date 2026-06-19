@@ -19,8 +19,8 @@
 | 2-2 | PacketTwoWay 누적 버퍼 무제한 (상한 필요)           | 🔴 High   | [ ]                    |            |
 | 3   | Beacon 패킷 크기 검증 비활성화                      | 🔴 High   | [ ]                    |            |
 | 4   | INI 파싱이 악성/오타 설정에 취약 (크래시)           | 🟠 Medium | [x]                    | 2026-06-19 |
-| 5-1 | 파일 읽기 경로 무검증 (경로 탐색)                   | 🟠 Medium | [ ]                    |            |
-| 5-2 | 파일 쓰기 경로 무검증 (임의 파일 쓰기)              | 🟠 Medium | [ ]                    |            |
+| 5-1 | 파일 읽기 경로 무검증 (경로 탐색)                   | 🟠 Medium | [x]                    | 2026-06-19 |
+| 5-2 | 파일 쓰기 경로 무검증 (임의 파일 쓰기)              | 🟠 Medium | [x]                    | 2026-06-19 |
 | 6   | 레거시 P/Invoke INI + 고정 255 버퍼                 | 🟠 Medium | [x]                    | 2026-06-19 |
 | 7   | Log 클래스 락 불일치 (경합 조건)                    | 🟡 Low    | [x]                    | 2026-06-19 |
 | 8-1 | TcpMultiServer 핸들러 객체 공유                     | 🟡 Low    | [ ]                    |            |
@@ -242,11 +242,11 @@ var it = new Item(items[0], items[1], i);  // '=' 없는 줄 → items[1] IndexO
 
 ### 5-1. 파일 읽기 경로 무검증 (경로 탐색)
 
-- [ ] 수정 완료
+- [X] 수정 완료 (2026-06-19)
 
 **위치**
 
-- `FrameworkCommon/Config/INI_UTF8.cs:51-55` — `SetIniFile` → `File.ReadLines`
+- `FrameworkCommon/Config/INI_UTF8.cs` — `SetIniFile` → `File.ReadLines`
 
 **문제**
 읽을 파일 경로를 정규화·검증 없이 그대로 `File.ReadLines`에 전달한다. 경로가 외부 입력(원격 명령, 설정값)에서 오면 `..\..\` 경로 탐색으로 허용 범위 밖 파일을 읽을 수 있다.
@@ -254,21 +254,27 @@ var it = new Item(items[0], items[1], i);  // '=' 없는 줄 → items[1] IndexO
 **영향**
 임의 파일 읽기(정보 노출), 경로 탐색.
 
-**조치**
+**결정한 정책 (사용자 승인)**
+절대경로(완전 정규화 경로)는 **호출자 책임으로 허용**하고, 상대경로의 `..` 디렉터리 탈출만 차단한다. 라이브러리의 책임 범위는 여기까지로 한정.
 
-- `Path.GetFullPath`로 정규화 후 허용 루트(base dir) 하위인지 검증.
-- 검증 실패 시 로드 거부 + 로깅.
+**조치 (적용 완료)**
+
+- 공용 헬퍼 `FrameworkCommon/File/PathGuard.cs`(`PathGuard.EnsureSafe`) 신설:
+  - `Path.IsPathFullyQualified`이면(절대경로) `Path.GetFullPath`로 정규화만 하고 허용.
+  - 상대경로는 `Environment.CurrentDirectory` 기준으로 결합·정규화 후 기준 디렉터리 하위가 아니면 `ArgumentException`으로 거부.
+- `SetIniFile`이 읽기 전에 `PathGuard.EnsureSafe(file)`로 검증.
+- 테스트: `FrameworkCommonTest/PathSecurityTest.cs`(PathGuard 단위) + `IniConfigTest.cs`(`SetIniFile` 상대 `..` 거부 / 절대경로 허용).
 
 ---
 
 ### 5-2. 파일 쓰기 경로 무검증 (임의 파일 쓰기)
 
-- [ ] 수정 완료
+- [X] 수정 완료 (2026-06-19)
 
 **위치**
 
-- `FrameworkCommon/Logger/Log.cs:51-58` — `SetLogDir` → `Directory.CreateDirectory`
-- `FrameworkCommon/Config/INI_UTF8.cs:158-170` — `WriteFile` → `File.CreateText`
+- `FrameworkCommon/Logger/Log.cs` — `SetLogDir` → `Directory.CreateDirectory`
+- `FrameworkCommon/Config/INI_UTF8.cs` — `WriteFile` → `File.CreateText`
 
 **문제**
 쓰기 대상 경로(로그 디렉터리, INI 파일)를 검증 없이 그대로 파일/디렉터리 API에 전달한다. 경로가 외부 입력에서 오면 임의 위치에 파일·디렉터리를 생성하거나 기존 파일을 덮어쓸 수 있다.
@@ -276,10 +282,15 @@ var it = new Item(items[0], items[1], i);  // '=' 없는 줄 → items[1] IndexO
 **영향**
 임의 파일 쓰기/덮어쓰기, 경로 탐색.
 
-**조치**
+**결정한 정책 (사용자 승인)**
+5-1과 동일: 절대경로는 허용하고 상대경로의 `..` 탈출만 차단한다.
 
-- `Path.GetFullPath`로 정규화 후 허용 루트(base dir) 하위인지 검증.
-- 검증 실패 시 쓰기 거부 + 로깅.
+**조치 (적용 완료)**
+
+- 5-1과 공용 헬퍼 `PathGuard.EnsureSafe`를 사용.
+- `SetLogDir`: 디렉터리 생성 전에 `PathGuard.EnsureSafe(logDir)`로 검증(정규화된 경로를 `LogDir`로 보관).
+- `WriteFile`: `File.CreateText` 전에 `PathGuard.EnsureSafe(this.INI_FILE)`로 검증.
+- 테스트: `FrameworkCommonTest/PathSecurityTest.cs`(`SetLogDir` 상대 `..` 거부 / 절대경로 허용·생성). 전체 250종 통과.
 
 ---
 

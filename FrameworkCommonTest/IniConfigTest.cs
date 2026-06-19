@@ -18,6 +18,9 @@ namespace Framework.Test.Config
         private sealed class TestIniConfig : IniConfig
         {
             public override Dto ReadFile() => null;
+
+            // SetIniFile은 protected이므로 경로 검증(#5-1) 테스트를 위해 노출한다.
+            public void LoadIniFile(string file) => this.SetIniFile(file);
         }
 
         private static string WriteTempIni(string content)
@@ -160,6 +163,37 @@ namespace Framework.Test.Config
                 cfg.SetAutoFile(path);
 
                 Assert.AreEqual("ok", cfg.GetString("S", "real"));
+            }
+            finally
+            {
+                try { File.Delete(path); } catch { /* 정리 단계 예외 무시 */ }
+            }
+        }
+
+        // ---- 보안 점검 #5-1: INI 읽기 경로 검증(상대경로 '..' 탈출 차단) ----
+
+        [TestMethod]
+        public void SetIniFile_RelativeTraversal_IsRejected()
+        {
+            var cfg = new TestIniConfig();
+
+            // 상대경로의 '..' 디렉터리 탈출은 읽기 전에 거부되어야 한다.
+            Assert.ThrowsException<ArgumentException>(
+                () => cfg.LoadIniFile(@"..\..\..\..\..\Windows\win.ini"));
+        }
+
+        [TestMethod]
+        public void SetIniFile_AbsolutePath_IsAllowed()
+        {
+            // 절대경로는 허용 — 정상 로드되어야 한다.
+            var path = WriteTempIni("[S]\nk=v\n");
+
+            try
+            {
+                var cfg = new TestIniConfig();
+                cfg.LoadIniFile(path); // 절대경로(Path.GetTempPath 기반), 예외 없이 통과
+
+                Assert.AreEqual("v", cfg.GetString("S", "k"));
             }
             finally
             {
