@@ -5,7 +5,6 @@ using System.Text;
 using System.Threading.Tasks;
 using Framework.Common.Logger;
 
-using System.Runtime.InteropServices;
 using Framework.Common.DTO;
 using Framework.Common.Converter;
 
@@ -13,73 +12,6 @@ using Framework.Common.Converter;
 
 namespace Framework.Common.Config
 {
-    public abstract class INI_Manager
-    {
-        // INI 쓰기
-        [DllImport("kernel32")]
-        private static extern long WritePrivateProfileString(string IpAppName, string key, string val, string filePath);
-
-        // INI 읽기 ( StringBuilder )
-        [DllImport("kernel32")]
-        private static extern int GetPrivateProfileString(string IpAppName, string key, string def, StringBuilder retVal, int size, string filePath);
-
-        public IniError Error { get; private set; } = new IniError();
-
-        // INI 위치
-        /// <summary>
-        /// INI 기본위치. 현재폴더의 setting.ini 파일
-        /// </summary>
-        protected internal string INI_FILE = Environment.CurrentDirectory + @"\setting.ini";
-
-        protected internal string AUTO_FILE = string.Empty;
-
-		public string IniFile => this.INI_FILE;
-
-		/// <summary>
-		/// Ini 위치 수동 지정
-		/// </summary>
-		/// <param name="file"></param>
-		protected void SetIniFile(string file) => this.INI_FILE = file;
-
-		public void SetAutoFile(string file)
-        {
-            if (System.IO.File.Exists(file))
-            {
-                this.AUTO_FILE = file;
-                this.SetIniFile(file);
-            }
-            else
-            {
-                this.Error.Fatal = true;
-                this.Error.SetReason( $"설정파일 '{file}' 이 없습니다.");
-            }
-        }
-
-		public void SetAutoFile() => this.SetIniFile(this.AUTO_FILE);
-
-		protected internal string GetIniValue(string Section, string Key)
-        {
-            var temp = new StringBuilder(255);
-			var i = GetPrivateProfileString(Section, Key, "", temp, 255, this.INI_FILE);
-
-			// Console.WriteLine($"이건 뭐지 : {i} {temp.ToString()}[{temp.Length}]");
-			
-            if (temp.Length == i)
-            {
-                return temp.ToString();
-            }
-            else
-            {
-                Log.Ins.Error($"{this.INI_FILE} {Section}.{Key} 길이 불일치 [{i}] [{temp.Length}]");
-                return string.Empty;
-            }
-        }
-
-		protected internal void SetIniValue(string Section, string Key, string value) => WritePrivateProfileString(Section, Key, value, this.INI_FILE);
-
-		
-	}
-
     /// <summary>
     /// Ini 파일 관리자. 작성할 때 파일이 없으면 새로 생성한다.
     /// </summary>

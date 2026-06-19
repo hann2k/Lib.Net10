@@ -21,7 +21,7 @@
 | 4   | INI 파싱이 악성/오타 설정에 취약 (크래시)           | 🟠 Medium | [ ]                    |            |
 | 5-1 | 파일 읽기 경로 무검증 (경로 탐색)                   | 🟠 Medium | [ ]                    |            |
 | 5-2 | 파일 쓰기 경로 무검증 (임의 파일 쓰기)              | 🟠 Medium | [ ]                    |            |
-| 6   | 레거시 P/Invoke INI + 고정 255 버퍼                 | 🟠 Medium | [ ]                    |            |
+| 6   | 레거시 P/Invoke INI + 고정 255 버퍼                 | 🟠 Medium | [x]                    | 2026-06-19 |
 | 7   | Log 클래스 락 불일치 (경합 조건)                    | 🟡 Low    | [x]                    | 2026-06-19 |
 | 8-1 | TcpMultiServer 핸들러 객체 공유                     | 🟡 Low    | [ ]                    |            |
 | 8-2 | Clients Dictionary 비동기화 접근 (경합)             | 🟡 Low    | [ ]                    |            |
@@ -280,22 +280,25 @@ var it = new Item(items[0], items[1], i);  // '=' 없는 줄 → items[1] IndexO
 
 ### 6. 레거시 P/Invoke INI + 고정 255 버퍼
 
-- [ ] 수정 완료
+- [X] 수정 완료 (2026-06-19)
 
 **위치**
 
-- `FrameworkCommon/Config/Config.cs:19-24` — `WritePrivateProfileString`/`GetPrivateProfileString`
-- `FrameworkCommon/Config/Config.cs:62-63` — `new StringBuilder(255)`
+- `FrameworkCommon/Config/Config.cs` — (구) `INI_Manager` 클래스: `WritePrivateProfileString`/`GetPrivateProfileString` P/Invoke + `new StringBuilder(255)`
 
 **문제**
-255자 고정 버퍼로 값이 조용히 잘린다(보안 설정값이 잘리면 의도치 않은 동작). 레거시 Win32 API 의존.
+255자 고정 버퍼로 값이 조용히 잘린다(보안 설정값이 잘리면 의도치 않은 동작). 또한 `GetPrivateProfileString`의 기본 마샬링은 ANSI(코드페이지 의존)라 저장소 UTF-8 정책(AGENTS.md §7)을 위반하며, `kernel32` 의존으로 Windows 전용이다.
 
 **영향**
-설정값 손실로 인한 오동작.
+설정값 손실로 인한 오동작, 인코딩 깨짐, 플랫폼 종속.
 
-**조치**
+**조치 (적용 완료) — INI_UTF8로 일원화**
 
-- UTF-8 버전(`INI_UTF8`)으로 일원화하거나 버퍼 크기 동적 확장.
+- 조사 결과 `INI_Manager`는 솔루션 내 **상속·호출처가 전혀 없는 죽은 중복 코드**였다(실제 소비자는 모두 `IniConfig : INI_UTF8` 경로 사용, README API에도 미문서화).
+- `INI_Manager` 클래스를 **통째로 제거** → P/Invoke·255 truncation·ANSI 인코딩 위반·Windows 종속을 한 번에 제거. 공용 `IniError`와 `IniConfig`는 유지.
+- 불필요해진 `using System.Runtime.InteropServices;` 정리.
+- 테스트: `FrameworkCommonTest/IniConfigTest.cs` (255자 초과 1000자 값 무손실 읽기, 한글·이모지 UTF-8 값 읽기 — 2종). 전체 237종 통과.
+- 참고(잔여): 실제 사용 경로인 `INI_UTF8`의 파싱 견고성/경로 검증은 별도 항목 #4·#5-1·#5-2에서 처리.
 
 ---
 
